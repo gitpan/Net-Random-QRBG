@@ -6,5 +6,5 @@ BEGIN {
 	use_ok( 'Net::Random::QRBG' );
 }
 
-my $obj = Net::Random::QRBG->new(user => "NRQRBG", pass => "NRQRBG");
+my $obj = Net::Random::QRBG->new();
 isa_ok($obj,"Net::Random::QRBG");

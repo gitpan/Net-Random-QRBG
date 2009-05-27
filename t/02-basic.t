@@ -6,12 +6,12 @@ BEGIN {
 	use Net::Random::QRBG;
 }
 
-my $obj = Net::Random::QRBG->new(user => "NRQRBG", pass => "NRQRBG");
+my $obj = Net::Random::QRBG->new();
 isa_ok($obj,"Net::Random::QRBG");
 
 my ($user,$pass) = $obj->credentials();
-cmp_ok($user,'eq','NRQRBG', 'User Credential');
-cmp_ok($pass,'eq','NRQRBG', 'Pass Credential');
+cmp_ok($user,'eq','nulluser', 'User Credential');
+cmp_ok($pass,'eq','nullpass', 'Pass Credential');
 
 ($user,$pass) = $obj->credentials('newuser','newpass');
 cmp_ok($user,'eq','newuser', 'Set User Credential');

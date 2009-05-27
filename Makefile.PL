@@ -5,11 +5,12 @@ WriteMakefile
           'NAME' => 'Net::Random::QRBG',
           'VERSION_FROM' => 'lib/Net/Random/QRBG.pm',
           'PREREQ_PM' => {
-                           'Carp' => 0,
-                           'IO::Socket::INET' => 0,
-                           'List::Util' => 0,
+                           'Carp' => '>= 1.08',
+                           'Config' => 0,
+                           'IO::Socket::INET' => '>= 1.31',
+                           'List::Util' => '>= 1.21',
                            'Test::More' => 0,
-                           'bytes' => 0
+                           'bytes' => '>= 1.03'
                          },
           'INSTALLDIRS' => 'site',
           'EXE_FILES' => [],

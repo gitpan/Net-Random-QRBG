@@ -9,16 +9,17 @@ Net::Random::QRBG - Gather random data from the QRBG Service
 
 =head1 VERSION
 
-Version 0.01
+Version 0.02
 
 =cut
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
+use bytes;
 use Carp ();
+use Config;
 use IO::Socket::INET;
 use List::Util qw(max);
-use bytes;
 
 =head1 SYNOPSIS
 
@@ -27,7 +28,7 @@ Module retrieves random data from the QRBG Service
     use Net::Random::QRBG;
 
     my $foo = Net::Random::QRBG->new();
-    ...
+    my $integer = $foo->getInt();
 
 =head1 FUNCTIONS
 
@@ -64,9 +65,6 @@ sub new {
 				cache		=> $cache,
 				}, $package;
 
-	unless( $self->_fillCache ) {
-		Carp::croak $self->errstr;
-	}
 	return $self;	
 }
 
@@ -101,28 +99,118 @@ sub setCache {
 	return $self->{cache_size};
 }
 
-=head2 getChar( )
+=head2 getChar( $sign )
 
-Returns one byte
+Returns one char (8-bit) value. 
+Default signed, pass any value for unsigned.
 
 =cut
 
 sub getChar {
-	my $self = shift;
-	return $self->_acquireBytes(1);
+	my ($self,$sign) = @_;
+	$sign ||= 0;
+	my $i = $self->_acquireBytes(1);
+	return undef unless $i;
+	if( $sign ) {
+		return unpack("C", $i);
+	} else {
+		return unpack("c", $i);
+	}
 }
 
-=head2 getInt ( )
+=head2 getHexChar ( $end )
 
-Return unsigned integer
+Return hex char.
+Default Big-Ended, pass any value for Little-Ended
+
+=cut
+
+sub getHexChar {
+	my ($self,$end) = @_;
+	$end ||= 0;
+	my $i = $self->_acquireBytes(1);
+	return undef unless $i;
+	if ($end) {
+		return unpack("H", $i);
+	} else {
+		return unpack("h", $i);
+	}
+}
+
+=head2 getShort( $sign )
+
+Returns one short (16-bits) value. 
+Default signed, pass any value for unsigned.
+
+=cut
+
+sub getShort {
+	my ($self,$sign) = @_;
+	$sign ||= 0;
+	my $i = $self->_acquireBytes(2);
+	return undef unless $i;
+	if( $sign ) {
+		return unpack("C", $i);
+	} else {
+		return unpack("c", $i);
+	}
+}
+
+=head2 getLong( $sign )
+
+Returns one long (32-bit) value. 
+Default signed, pass any value for unsigned.
+
+=cut
+
+sub getLong {
+	my ($self,$sign) = @_;
+	$sign ||= 0;
+	my $i = $self->_acquireBytes(4);
+	return undef unless $i;
+	if( $sign ) {
+		return unpack("L", $i);
+	} else {
+		return unpack("l", $i);
+	}
+}
+
+=head2 getQuad( $sign )
+
+Returns one quad (64-bit) value. 
+Default signed, pass any value for unsigned.
+
+=cut
+
+sub getQuad {
+	my ($self,$sign) = @_;
+	$sign ||= 0;
+	my $i = $self->_acquireBytes(8);
+	return undef unless $i;
+	if( $sign ) {
+		return unpack("Q", $i);
+	} else {
+		return unpack("q", $i);
+	}
+}
+
+=head2 getInt ( $sign )
+
+Return integer (Dependent on architecture)
+Default signed, pass any value for unsigned.
 
 =cut 
 
 sub getInt {
-	my $self = shift;
-	my $i = $self->_acquireBytes(4);
-	return 0 unless $i;
-	return unpack("i4",$i);
+	my ($self,$sign) = @_;
+	$sign ||= 0;
+	my $i = $self->_acquireBytes( $Config{intsize} );
+	return undef unless $i;
+	if( $sign ) {
+		return unpack("I", $i);
+	} else {
+		return unpack("i", $i);
+	}
 }
 
 sub _fillCache {
@@ -133,7 +221,7 @@ sub _fillCache {
 sub _acquireBytes {
 	my ($self, $count) = @_;
 	if ( ( bytes::length($self->{cache}) < $count ) && !$self->_getMoreBytes( max( $self->{cache_size}, $count ) ) ) {
-		return 0;
+		return undef;
 	}
 	my $r = substr( $self->{cache}, 0, $count );
 	$self->{cache} = substr( $self->{cache}, $count );
@@ -168,7 +256,7 @@ sub _getMoreBytes {
 
 	if( $code || $code2 ) {
 		$self->_seterror($code, $code2);
-		return 0;
+		return undef;
 	}
 	
 	$self->{cache} .= $rawdata;
@@ -187,6 +275,7 @@ sub _seterror {
 		"Service said we were sending our request too slow",
 		"Authentication failed",
 		"User quota exceeded" );
+
 	my @service_fixes = (
 		"None",
 		"Try again later",
@@ -256,6 +345,7 @@ L<http://search.cpan.org/dist/Net-Random-QRBG/>
 
 =head1 ACKNOWLEDGEMENTS
 
+Yea, the POD sucks. I'll fix it eventually.
 
 =head1 COPYRIGHT & LICENSE
 
