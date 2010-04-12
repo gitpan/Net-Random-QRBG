@@ -1,15 +1,19 @@
 Net-Random-QRBG
 
-This is something magical
+Net::Random::QRBG connects directly to the QRBG Service and retrieves the specified number
+of random bytes from the datastream returned.
+
+a free account from http://random.irb.hr/ is required
+
 
 INSTALLATION
 
 To install this module, run the following commands:
 
-	perl Build.PL
-	./Build
-	./Build test
-	./Build install
+	perl Makefile.PL
+	make
+	make test
+	make install
 
 SUPPORT AND DOCUMENTATION
 
@@ -30,12 +34,12 @@ You can also look for information at:
         http://cpanratings.perl.org/d/Net-Random-QRBG
 
     Search CPAN
-        http://search.cpan.org/dist/Net-Random-QRBG/
+        http://search.cpan.org/dist/Net-Random-QRBG
 
 
 COPYRIGHT AND LICENCE
 
-Copyright (C) 2009 Brent Garber
+Copyright (C) 2010 BlueT - Matthew Lien - 練喆明
 
 This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.

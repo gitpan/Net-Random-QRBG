@@ -1,312 +1,186 @@
 package Net::Random::QRBG;
 
-use warnings;
-use strict;
-
 =head1 NAME
 
-Net::Random::QRBG - Gather random data from the QRBG Service
+Net::Random::QRBG - Get random numbers/data from 
+Quantum Random Bit Generator Service.
 
 =head1 VERSION
 
-Version 0.02
+Version 0.01alpha
 
 =cut
 
-our $VERSION = '0.02';
+our $VERSION = '0.01alpha';
 
-use bytes;
-use Carp ();
-use Config;
-use IO::Socket::INET;
-use List::Util qw(max);
 
 =head1 SYNOPSIS
 
-Module retrieves random data from the QRBG Service
+	use Net::Random::QRBG;
+	$qrbg = new Net::Random::QRBG('username', 'password');
+	
+	@ints = $qrbg->get(4);
+	print "Got random integers: @ints\n";
+	
+	@shorts = $qrbg->get(2, 's');
+	print "Got random shorts: @shorts\n";
+	
+	$bytes = $qrbg->getraw(1024);
 
-    use Net::Random::QRBG;
+=head1 DESCRIPTION
 
-    my $foo = Net::Random::QRBG->new();
-    my $integer = $foo->getInt();
+Net::Random::QRBG connects directly to the QRBG Service and retrieves the specified number
+of random bytes from the datastream returned.
 
-=head1 FUNCTIONS
+This is a Perl version client for QRBG Service API,
+much like a Perl porting of PHP's QRBG Service Access class.
+The OO interface is now borrow from Brandon Checketts' Data::Random::QRBGS,
+which is not availiable on CPAN.
+In next version I'll fix the OO interface to be compactible with the 
+official C++ method names.
+
+=cut
+
+use common::sense;
+use Config;
+use IO::Socket::INET;
+
+my $user	= '';
+my $pass	= '';
+my $server	= 'random.irb.hr';
+my $port	= '1227';
+my $received	= '';
+
+=head1 METHODS
 
 =head2 new
 
 =cut
 
-sub new {
-	my ($package, %params) = @_;
+sub new($$) {
+	my $class = shift;
+	($user, $pass) = @_;
 	
-	my $user = delete $params{user};
-	$user ||= 'nulluser';
-
-	my $pass = delete $params{pass};
-	$pass ||= 'nullpass';
-	
-	my $server = delete $params{server};
-	$server ||= 'random.irb.hr';
-
-	my $port = delete $params{port};
-	$port ||= '1227';
-
-	my $cache_size = delete $params{cache_size};
-	$cache_size ||= 4096;
-
-	my $cache = '';
-
-	my $self = bless {
-				server		=> $server,
-				port		=> $port,
-				user		=> $user,
-				pass		=> $pass,
-				cache_size	=> $cache_size,
-				cache		=> $cache,
-				}, $package;
-
-	return $self;	
-}
-
-=head2 credentials( $user, $pass )
-
-Get/Set user login details
-
-=cut
-
-sub credentials {
-	my $self = shift;
-	if (@_) {
-		my ($user, $pass) = @_;
-		$self->{user} = $user;
-		$self->{pass} = $pass;
-	}
-	return ($self->{user}, $self->{pass});
-}
-
-=head2 setCache( $cache_size )
-
-Get/Set the cacheSize
-
-=cut
-
-sub setCache {
-	my ($self) = shift;
-	if (@_) {
-		my $new_size = shift;
-		$self->{cache_size} = $new_size;
-	}
-	return $self->{cache_size};
-}
-
-=head2 getChar( $sign )
-
-Returns one char (8-bit) value. 
-Default signed, pass any value for unsigned.
-
-=cut
-
-sub getChar {
-	my ($self,$sign) = @_;
-	$sign ||= 0;
-	my $i = $self->_acquireBytes(1);
-	return undef unless $i;
-	if( $sign ) {
-		return unpack("C", $i);
-	} else {
-		return unpack("c", $i);
-	}
-}
-
-=head2 getHexChar ( $end )
-
-Return hex char.
-Default Big-Ended, pass any value for Little-Ended
-
-=cut
-
-sub getHexChar {
-	my ($self,$end) = @_;
-	$end ||= 0;
-	my $i = $self->_acquireBytes(1);
-	return undef unless $i;
-	if ($end) {
-		return unpack("H", $i);
-	} else {
-		return unpack("h", $i);
-	}
-}
-
-=head2 getShort( $sign )
-
-Returns one short (16-bits) value. 
-Default signed, pass any value for unsigned.
-
-=cut
-
-sub getShort {
-	my ($self,$sign) = @_;
-	$sign ||= 0;
-	my $i = $self->_acquireBytes(2);
-	return undef unless $i;
-	if( $sign ) {
-		return unpack("C", $i);
-	} else {
-		return unpack("c", $i);
-	}
-}
-
-=head2 getLong( $sign )
-
-Returns one long (32-bit) value. 
-Default signed, pass any value for unsigned.
-
-=cut
-
-sub getLong {
-	my ($self,$sign) = @_;
-	$sign ||= 0;
-	my $i = $self->_acquireBytes(4);
-	return undef unless $i;
-	if( $sign ) {
-		return unpack("L", $i);
-	} else {
-		return unpack("l", $i);
-	}
-}
-
-=head2 getQuad( $sign )
-
-Returns one quad (64-bit) value. 
-Default signed, pass any value for unsigned.
-
-=cut
-
-sub getQuad {
-	my ($self,$sign) = @_;
-	$sign ||= 0;
-	my $i = $self->_acquireBytes(8);
-	return undef unless $i;
-	if( $sign ) {
-		return unpack("Q", $i);
-	} else {
-		return unpack("q", $i);
-	}
-}
-
-=head2 getInt ( $sign )
-
-Return integer (Dependent on architecture)
-Default signed, pass any value for unsigned.
-
-=cut 
-
-sub getInt {
-	my ($self,$sign) = @_;
-	$sign ||= 0;
-	my $i = $self->_acquireBytes( $Config{intsize} );
-	return undef unless $i;
-	if( $sign ) {
-		return unpack("I", $i);
-	} else {
-		return unpack("i", $i);
-	}
-}
-
-sub _fillCache {
-	my ($self) = @_;
-	return $self->_getMoreBytes( $self->{cache_size} );
-}
-
-sub _acquireBytes {
-	my ($self, $count) = @_;
-	if ( ( bytes::length($self->{cache}) < $count ) && !$self->_getMoreBytes( max( $self->{cache_size}, $count ) ) ) {
+	if (length($user)<1 || length($user)>100) {
+		#~ $this->seterror(1,0,0,"Username may not be empty or exceed 100 characters");
+		warn "Username may not be empty or exceed 100 characters";
 		return undef;
 	}
-	my $r = substr( $self->{cache}, 0, $count );
-	$self->{cache} = substr( $self->{cache}, $count );
-	return $r;
+	if (length($pass)<6 || length($pass)>100) {
+		#~ $this->seterror(1,0,0,"Password must be at least 6, at most 100 characters long");
+		warn "Password must be at least 6, at most 100 characters long";
+		return undef;
+	}
+	
+	return bless ({}, ref($class) ? ref($class) : $class);
 }
 
-sub _getMoreBytes {
-	my ($self, $count) = @_;
+=head2 getraw
+
+=cut
+
+sub getraw($) {
+	my($self, $bytes) = @_;
 	
 	my $sock = IO::Socket::INET->new(
-		Proto		=> 'tcp',
-		PeerPort	=> $self->{port},
-		PeerAddr	=> $self->{server}
-	) or die "Unable to create socket: $!\n";
-
-	my $un_length = length( $self->{user} );
-	my $pw_length = length( $self->{pass} );
-	my $content_size = 6 + $un_length + $pw_length;
-
-	my $pcode = "xnca$un_length"."ca$pw_length"."N";
-	my $data = pack( $pcode, $content_size, $un_length, $self->{user}, $pw_length, $self->{pass}, $count );
+		Proto	=> 'tcp',
+		PeerPort	=> $port,
+		PeerAddr	=> $server
+	) or die "Unable to connect to remote host $server:$port\n";
 	
-	$sock->send($data);
-
-	my $received = '';
-	while( my $rcv = <$sock> ) {
+	#~ setup request
+	
+	#~ Client first (and last) packet:
+	#~ Size [B]		Content
+	#~ --------------	--------------------------------------------------------
+	#~ 1				operation, from OperationCodes enum
+	#~ if operation == GET_DATA_AUTH_PLAIN, then:
+	#~ 2				content size (= 1 + username_len + 1 + password_len + 4)
+	#~ 1				username_len (must be > 0 and <= 100)
+	#~ username_len	username (NOT zero padded!)
+	#~ 1				password_len (must be >= 6 and <= 100)
+	#~ password_len	password in plain 8-bit ascii text (NOT zero padded!)
+	#~ 4				bytes of data requested
+	
+	#~ Server first (and last) packet:
+	#~ Size [B]		Content
+	#~ --------------	--------------------------------------------------------
+	#~ 1				response, from ServerResponseCodes enum
+	#~ 1				response details - reason, from RefusalReasonCodes
+	#~ 4				data_len, bytes of data that follow
+	#~ data_len		data
+	
+	
+	my $req=
+		chr(0).		# GET_DATA_AUTH_PLAIN
+		pack("n",length($user)+length($pass)+6).
+		chr(length($user)).
+		$user.
+		chr(length($pass)).
+		$pass.
+		pack("N",$bytes);
+	
+	
+	$sock->send($req);
+	
+	$received = '';
+	while(my $rcv = <$sock>) {
 		$received .= $rcv;
 	}
 	close($sock);
-
-	my ($code, $code2, $bytes_returned, $rawdata) = unpack("ccNa*", $received);
-
-	if( $code || $code2 ) {
-		$self->_seterror($code, $code2);
-		return undef;
-	}
 	
-	$self->{cache} .= $rawdata;
-	return 1;
+	my ($code, $code2, $bytes_returned, $rawdata)  = unpack("ccNa*", $received);
+	return $rawdata;
 }
 
-sub _seterror {
-	my ( $self, $c1, $c2 ) = @_;
-	
-	my @service_errors = (
-		"OK",
-		"Service was shutting down",
-		"Server was/is experiencing internal errors",
-		"Service said we have requested some unsupported operation",
-		"Service said we sent an ill-formed request packet",
-		"Service said we were sending our request too slow",
-		"Authentication failed",
-		"User quota exceeded" );
-
-	my @service_fixes = (
-		"None",
-		"Try again later",
-		"Try again later",
-		"Upgrade your client software",
-		"Upgrade your client software",
-		"Check your network connection",
-		"Check your login credentials",
-		"Try again later, or contact Service admin to increase your quota(s)" );
-
-	$self->{error} = $service_errors[$c1] . ": " . $service_fixes[$c2];
-}
-
-=head2 errstr( )
-
-Return last error
+=head2 get
 
 =cut
 
-sub errstr {
-	my $self = shift;
-	return $self->{error} || "";
-}
+sub get($;$) {
+	my ($self, $count, $type) = @_;
 	
+	## Default to unsigned integers if type was not specified
+	$type = $type || 'i';
+	
+	# Is there a way to determine how many bytes are in a particular type (without Devel::Size)?
+	
+	my $bytes_each;
+	if($type eq 'c' || $type eq 'C') {
+		$bytes_each = 1;
+	} elsif( $type eq 's' || $type eq 'S') {
+		$bytes_each = $Config{shortsize};
+	} elsif( $type eq 'n' || $type eq 'v') {
+		$bytes_each = 2;
+	} elsif( $type eq 'l' || $type eq 'L') {
+		$bytes_each = 2;
+	} elsif( $type eq 'i' || $type eq 'I') {
+		$bytes_each = $Config{intsize};
+	} elsif($type eq 'N' || $type eq 'V') {
+		$bytes_each = 4;
+	} elsif( $type eq 'q' || $type eq 'Q' || $type eq 'l' || $type eq 'L') {
+		$bytes_each = 4;
+	} else {
+		print "Data::Random::QRBG - I don't know the size in byes of type $type\n";
+		## How to handle requests for floats?
+		return 0;
+	}
+	
+	my $bytes = $bytes_each * $count;
+	$self->getraw($bytes);
+	
+	my ($code, $code2, $bytes_returned, @results)  = unpack("ccN".$type.$count, $received);
+	
+	return @results;
+}
+
 =head1 AUTHOR
 
-Brent Garber, C<< <overlordq at gmail.com> >>
+BlueT - Matthew Lien - 練喆明, C<< <BlueT at BlueT.org> >>
 
 =head1 BUGS
 
-Please report any bugs or feature requests to C<bug-net-random-qrbg at rt.cpan.org>, or through
+Please report any bugs or feature requests to C<bug-net-random-QRBG at rt.cpan.org>, or through
 the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Net-Random-QRBG>.  I will be notified, and then you'll
 automatically be notified of progress on your bug as I make changes.
 
@@ -338,18 +212,29 @@ L<http://cpanratings.perl.org/d/Net-Random-QRBG>
 
 =item * Search CPAN
 
-L<http://search.cpan.org/dist/Net-Random-QRBG/>
+L<http://search.cpan.org/dist/Net-Random-QRBG>
 
 =back
 
 
 =head1 ACKNOWLEDGEMENTS
 
-Yea, the POD sucks. I'll fix it eventually.
+=item * QRBG: Quantum Random Bit Generator Service
+
+L<http://random.irb.hr/>
+
+=item * Brandon Checketts' Data::Random::QRBGS
+
+L<http://www.brandonchecketts.com/qrbgs.php>
+
+=item * QRBG Service Access class for PHP
+
+L<http://random.irb.hr/download.php?file=qrbg.php>
+
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright 2009 Brent Garber, all rights reserved.
+Copyright 2010 BlueT - Matthew Lien - 練喆明, all rights reserved.
 
 This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.
